@@ -1,4 +1,4 @@
-function optimize(model, npop, ngen, nw)
+function optimize(model, npop, ngen, cache, nw)
 % OPTIMIZE  Runs a genetic algorithm optimization procudure on a model. 
 %   OPTIMIZE(MODEL, NPOP, NGEN, NW, SLIDESHOW) runs a genetic algorithm
 %   optimization powered by the Global Optimization Toolbox ga function.
@@ -13,11 +13,16 @@ arguments
     model Model
     npop (1,1) {mustBeNumeric} = 5;
     ngen (1,1) {mustBeNumeric} = 2;
+    cache (1,1) {mustBeNumericOrLogical} = 0;
     nw (1,1) {mustBeNumeric} = 0;
 end
 
 % Disable parallelism if number of workers set to zeto. 
 isParallel = nw > 0;
+
+if isParallel && cache
+    error("Cache is not supported while running on multiple workers!");
+end
 
 pool = [];
 
@@ -38,6 +43,7 @@ end
 % each worker has it's own instance.  
 % (Behaves as a normal variable without parallelism)
 modelConstant = [];
+cacheStorage = configureDictionary('string', 'double');
 
 if isParallel
     modelConstant = parallel.pool.Constant(model);
@@ -85,6 +91,14 @@ resultSaver(model, result);
     function f = workerFitness(x)
         % Required to access ModelUtil.
         import com.comsol.model.util.*
+        
+        paramKey = strjoin(x+"",'');
+
+        if cache && isKey(cacheStorage, paramKey)
+            f = lookup(cacheStorage, paramKey);            
+            disp('Using cached value for key ' + paramKey + ' : ' + f);
+            return;
+        end
 
         try
             % Fetch the constant 
@@ -117,6 +131,11 @@ resultSaver(model, result);
         catch error
             f = inf;
             disp(error.message);
+        end
+
+        if cache
+            disp('Storing value for key ' + paramKey + ' : ' + f);
+            cacheStorage = insert(cacheStorage, paramKey, f); 
         end
     end
 
