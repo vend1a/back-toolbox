@@ -37,6 +37,7 @@ classdef (Abstract) Model
         lb;
         ub;
         fitnessFunc;
+        validateGeometry;
     end
 
     methods
@@ -55,8 +56,20 @@ classdef (Abstract) Model
         function f = fit(obj,x,model)
             % First apply the params.
             obj.applyParams(x, model);
+
+            if obj.validateGeometry
+                hasGeomWarnings = validateGeom(model);
+
+                if hasGeomWarnings
+                    f = inf;
+                    disp('Current parametrization through geometry warnings in model: ' + x);
+                    return;
+                end
+            end
+
             % Execute model study
-            mphrun(model, 'study')
+            mphrun(model, 'study');
+
             % Execute the fitness function.
             f = obj.fitnessFunc(x, model);
         end
